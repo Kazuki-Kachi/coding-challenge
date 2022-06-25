@@ -1,0 +1,442 @@
+service:
+  name: annowork
+# app and org for use with dashboard.serverless.com
+#app: your-app-name
+#org: your-org-name
+
+custom:
+  defaultStage: develop
+  defaultRegion: ap-northeast-1
+  defaultRuntime: nodejs14.x
+  profiles: ${opt:profile, 'default'}
+  webpack:
+    webpackConfig: ./webpack.config.js
+    includeModules: true
+  authorizer:
+    name: authorization
+    type: 'TOKEN'
+    identitySource: method.request.header.Authorization
+    resultTtlInSeconds: 0
+
+resources:
+  Resources:
+    ApiGatewayRestApi:
+      Type: AWS::ApiGateway::RestApi
+      Properties:
+        Name: ${self:service}-${opt:stage, self:custom.defaultStage}
+    GatewayResponse:
+      Type: 'AWS::ApiGateway::GatewayResponse'
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'*'"
+        ResponseType: ACCESS_DENIED
+        RestApiId:
+          Ref: 'ApiGatewayRestApi'
+        ResponseTemplates:
+          application/json: "{\n\"errors\":[{\"error_code\":\"$context.authorizer.context.error_code\",\"message\":\"$context.authorizer.context.message\",\"ext\":\"$context.authorizer.context.ext\"}]}"
+        StatusCode: '401'
+# Add the serverless-webpack plugin
+plugins:
+  - serverless-webpack
+  - serverless-offline
+
+provider:
+  name: aws
+  runtime: ${opt:runtime, self:custom.defaultRuntime}
+  region: ap-northeast-1
+  stage: ${opt:stage, self:custom.defaultStage}
+  profile: ${self:custom.profiles}
+  logRetentionInDays: 90
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:DescribeTable
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+        - logs:CreateLogGroup
+        - logs:CreateLogStream
+        - logs:PutLogEvents
+      Resource: "arn:aws:dynamodb:${self:provider.region}:*:table/*"
+    - Effect: Allow
+      Action:
+        - ssm:GetParameters
+        - ssm:GetParameter
+      Resource: "*"
+    - Effect: Allow
+      Action:
+        - kms:Decrypt
+      Resource: "*"
+  apiGateway:
+    minimumCompressionSize: 1024 # Enable gzip compression for responses > 1 KB
+  logs:
+    restApi:
+      accessLogging: false
+      executionLogging: true
+      level: INFO
+      fullExecutionData: false
+  environment:
+    AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
+    ANNOFAB_URL: ${ssm:/annowork/ANNOFAB_URL~true}
+
+package:
+  individually: true
+
+functions:
+  listMembers:
+    handler: ./src/presentation/member/listRequestEvent.eventHandler
+    events:
+      - http:
+          method: get
+          authorizer: ${self:custom.authorizer}
+          path: /api/v1/members
+  createMember:
+    handler: ./src/presentation/member/createRequestEvent.eventHandler
+    events:
+      - http:
+          method: post
+          authorizer: ${self:custom.authorizer}
+          path: /api/v1/members
+  getMember:
+    handler: ./src/presentation/member/getRequestEvent.eventHandler
+    events:
+      - http:
+          method: get
+          authorizer: ${self:custom.authorizer}
+          path: /api/v1/members/{memberId}
+  updateMember:
+    handler: ./src/presentation/member/updateRequestEvent.handler
+    events:
+      - http:
+          method: put
+          authorizer: ${self:custom.authorizer}
+          path: /api/v1/members/{memberId}
+  deleteMember:
+    handler: ./src/presentation/member/deleteRequestEvent.eventHandler
+    events:
+      - http:
+          method: delete
+          authorizer: ${self:custom.authorizer}
+          path: /api/v1/members/{memberId}
+  login:
+    handler: ./src/presentation/login/requestEvent.login
+    events:
+      - http:
+          method: post
+          path: /api/v1/login
+    environment:
+      JWT_SECRET: ${ssm:/annowork/${self:provider.stage}/JWT_SECRET~true}
+  createProject:
+    handler: ./src/presentation/project/createRequest.handler
+    events:
+      - http:
+          method: post
+          authorizer: ${self:custom.authorizer}
+          path: /api/v1/projects
+  getProject:
+      handler: ./src/presentation/project/getRequest.eventHandler
+      events:
+        - http:
+            method: get
+            authorizer: ${self:custom.authorizer}
+            path: /api/v1/projects/{projectId}
+  updateProject:
+      handler: ./src/presentation/project/updateRequest.handler
+      events:
+        - http:
+            method: patch
+            authorizer: ${self:custom.authorizer}
+            path: /api/v1/projects/{projectId}
+  deleteProject:
+      handler: ./src/presentation/project/deleteRequest.handler
+      events:
+        - http:
+            method: delete
+            authorizer: ${self:custom.authorizer}
+            path: /api/v1/projects/{projectId}
+  listProject:
+      handler: ./src/presentation/project/listRequest.handler
+      events:
+        - http:
+            method: get
+            authorizer: ${self:custom.authorizer}
+            path: /api/v1/projects
+  actuals:
+    handler: ./src/presentation/actuals/request.query
+    events:
+      - http:
+          method: get
+          authorizer: ${self:custom.authorizer}
+          path: /api/v1/actuals
+          request:
+            parameters:
+              querystrings:
+                term_start: false
+                term_end: false
+  registerActual:
+    handler: ./src/presentation/actuals/registerRequest.handler
+    events:
+      - http:
+          method: post
+          authorizer: ${self:custom.authorizer}
+          path: /api/v1/projects/{projectId}/sub-projects/{subProjectId}/members/{memberId}/actual
+          request:
+            pathstring:
+              projectId: true
+              subProjectId: true
+              memberId: true
+  availabilities:
+    handler: ./src/presentation/availabilities/queryRequest.handler
+    events:
+      - http:
+          method: get
+          authorizer: ${self:custom.authorizer}
+          path: /api/v1/availabilities
+          request:
+            parameters:
+              querystrings:
+                term_start: false
+                term_end: false
+  registerAvailabilities:
+    handler: ./src/presentation/availabilities/registerRequest.handler
+    events:
+      - http:
+          method: post
+          authorizer: ${self:custom.authorizer}
+          path: /api/v1/members/{memberId}/availability
+          request:
+            pathstring:
+              memberId: true
+  getAvailabilities:
+    handler: ./src/presentation/availabilities/queryRequest.handler
+    events:
+      - http:
+          method: get
+          authorizer: ${self:custom.authorizer}
+          path: /api/v1/members/{memberId}/availability
+          request:
+            pathstring:
+              memberId: true
+            parameters:
+              querystrings:
+                term_start: false
+                term_end: false
+  deleteAvailabilities:
+    handler: ./src/presentation/availabilities/deleteRequest.handler
+    events:
+      - http:
+          method: delete
+          authorizer: ${self:custom.authorizer}
+          path: /api/v1/members/{memberId}/dates/{date}/availability
+          request:
+            pathstring:
+              memberId: true
+              date: true
+  schedules:
+    handler: ./src/presentation/schedules/queryRequest.handler
+    events:
+      - http:
+          method: get
+          authorizer: ${self:custom.authorizer}
+          path: /api/v1/schedules
+          request:
+            parameters:
+              querystrings:
+                term_start: false
+                term_end: false
+  registerSchedules:
+    handler: ./src/presentation/schedules/registerRequest.handler
+    events:
+      - http:
+          method: post
+          authorizer: ${self:custom.authorizer}
+          path: /api/v1/schedules
+  fixSchedules:
+    handler: ./src/presentation/schedules/fixRequest.handler
+    events:
+      - http:
+          method: post
+          authorizer: ${self:custom.authorizer}
+          path: /api/v2/schedules/{editId}/fix
+          request:
+            pathstring:
+              editId: true
+  getDateTime:
+    handler: ./src/presentation/system/getDateTimeRequest.handler
+    events:
+      - http:
+          method: get
+          authorizer: ${self:custom.authorizer}
+          path: /api/v1/system/date-time
+          request:
+            parameters:
+              querystrings:
+                clientValue: false
+  getAccount:
+    handler: ./src/presentation/account/getRequest.eventHandler
+    environment:
+      JWT_SECRET: ${ssm:/annowork/${self:provider.stage}/JWT_SECRET~true}
+    events:
+      - http:
+          method: get
+          authorizer: ${self:custom.authorizer}
+          path: /api/v1/myinfo
+  authorization:
+    handler: ./src/presentation/authorization/requestEvent.authorization
+    environment:
+      JWT_SECRET: ${ssm:/annowork/${self:provider.stage}/JWT_SECRET~true}
+  getActualsByMember:
+    handler: ./src/presentation/member/actuals/queryRequest.handler
+    events:
+      - http:
+          method: get
+          authorizer: ${self:custom.authorizer}
+          path: /api/v2/members/{memberId}/actuals
+          request:
+            pathstring:
+              memberId: true
+            parameters:
+              querystrings:
+                term_start: true
+                term_end: true
+  registerActualV2:
+    handler: ./src/presentation/project/actuals/registerRequest.handler
+    events:
+      - http:
+          method: post
+          authorizer: ${self:custom.authorizer}
+          path: /api/v2/projects/{projectId}/sub-projects/{subProjectId}/members/{memberId}/actuals
+          request:
+            pathstring:
+              projectId: true
+              subProjectId: true
+              memberId: true
+  deleteActualByProjectMember:
+    handler: ./src/presentation/member/actuals/deleteRequest.handler
+    events:
+      - http:
+          method: delete
+          authorizer: ${self:custom.authorizer}
+          path: /api/v2/projects/{projectId}/members/{memberId}/actuals/{actualId}
+          request:
+            pathstring:
+              projectId: true
+              memberId: true
+              actualId: true
+  putActualByProjectMember:
+    handler: ./src/presentation/member/actuals/putRequest.handler
+    events:
+      - http:
+          method: put
+          authorizer: ${self:custom.authorizer}
+          path: /api/v2/projects/{projectId}/sub-projects/{subProjectId}/members/{memberId}/actuals/{actualId}
+          request:
+            pathstring:
+              projectId: true
+              subProjectId: true
+              memberId: true
+              actualId: true
+  postSubProject:
+    handler: ./src/presentation/project/subProject/post.handler
+    events:
+      - http:
+          method: post
+          authorizer: ${self:custom.authorizer}
+          path: /api/v1/projects/{projectId}/sub-projects/{subProjectId}
+          request:
+            pathstring:
+              projectId: true
+              subProjectId: true
+  putSubProject:
+    handler: ./src/presentation/project/subProject/put.handler
+    events:
+      - http:
+          method: put
+          authorizer: ${self:custom.authorizer}
+          path: /api/v1/projects/{projectId}/sub-projects/{subProjectId}
+          request:
+            pathstring:
+              projectId: true
+              subProjectId: true
+  deleteSubProject:
+    handler: ./src/presentation/project/subProject/delete.handler
+    events:
+      - http:
+          method: delete
+          authorizer: ${self:custom.authorizer}
+          path: /api/v1/projects/{projectId}/sub-projects/{subProjectId}
+          request:
+            pathstring:
+              projectId: true
+              subProjectId: true
+  listNonWorkingRules:
+    handler: ./src/presentation/nonworkingrule/listRequestEvent.eventHandler
+    events:
+      - http:
+          method: get
+          authorizer: ${self:custom.authorizer}
+          path: /api/v1/non-working-rules
+          request:
+            parameters:
+              querystrings:
+                organization: false
+  registerActualV2_2:
+    handler: ./src/presentation/actuals/v2/registerRequest.handler
+    events:
+      - http:
+          method: post
+          authorizer: ${self:custom.authorizer}
+          path: /api/v2/actuals
+  registerCommand:
+    handler: ./src/presentation/commands/registerRequest.handler
+    events:
+      - http:
+          method: post
+          authorizer: ${self:custom.authorizer}
+          path: /api/v1/commands
+  deleteActualV2_2:
+    handler: ./src/presentation/actuals/v2/deleteRequest.handler
+    events:
+      - http:
+          method: delete
+          authorizer: ${self:custom.authorizer}
+          path: /api/v2/actuals/{actualId}
+          request:
+            pathstring:
+              actualId: true
+  getActualV2:
+    handler: ./src/presentation/actuals/v2/queryRequest.handler
+    events:
+      - http:
+          method: get
+          authorizer: ${self:custom.authorizer}
+          path: /api/v2/actuals
+          request:
+            parameters:
+              querystrings:
+                project_id: false
+                sub_project_id: false
+                member_id: false
+                term_start: false
+                term_end: false
+  edit-start:
+    handler: ./src/presentation/schedules/editStartRequest.handler
+    events:
+      - http:
+          method: post
+          authorizer: ${self:custom.authorizer}
+          path: /api/v2/schedules/edit-start
+  putActualV2_2:
+    handler: ./src/presentation/actuals/v2/putRequest.handler
+    events:
+      - http:
+          method: put
+          authorizer: ${self:custom.authorizer}
+          path: /api/v2/actuals/{actualId}
+          request:
+            pathstring:
+              actualId: true

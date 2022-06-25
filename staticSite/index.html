@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Calculate nearest locations - Azure Maps Web SDK Samples</title>
+
+  <meta charset="utf-8"/>
+
+  <!-- Add references to the Azure Maps Map control JavaScript and CSS files. -->
+  <link href="https://atlas.microsoft.com/sdk/javascript/mapcontrol/2/atlas.min.css" rel="stylesheet"/>
+  <script src="https://atlas.microsoft.com/sdk/javascript/mapcontrol/2/atlas.min.js"></script>
+  <script src="https://unpkg.com/rxjs@7.5.5/dist/bundles/rxjs.umd.min.js"></script>
+  <script>
+    let source, bubbleLayer
+    const {fromEventPattern, map, merge, throttleTime} = rxjs
+
+    function getMap() {
+      const getGeoJsonsUrl = process.env.FoodTrucksApiPath ?? 'http://localhost:7071/api/foodTruckss'
+      //Initialize a map instance.
+      const atlasMap = new atlas.Map('myMap', {
+        center: [-122.43155604282938, 37.76016570672468],
+        zoom: 15,
+        style: 'grayscale_dark',
+        view: 'Auto',
+        authOptions: {
+          authType: 'subscriptionKey',
+          subscriptionKey: process.env.MapKey
+        }
+      })
+
+      merge(fromEventPattern(addHandler => atlasMap.events.add('ready', addHandler), handler => atlasMap.events.remove('ready', handler)),
+        fromEventPattern(addHandler => atlasMap.events.add('moveend', addHandler), handler => atlasMap.events.remove('moveend', handler))).pipe(
+        throttleTime(100),
+        map((_, index) => index)
+      ).subscribe(index => {
+        console.log(index)
+        const [longitude, latitude] = atlasMap.getCamera().center ?? [0, 0]
+        fetch(`${getGeoJsonsUrl}?latitude=${latitude}&longitude=${longitude}&distance=1`).then(response => response.json()).then(results => {
+          const pins = results.features
+
+          source ??= new atlas.source.DataSource()
+
+          if (!index)
+            atlasMap.sources.add(source)
+
+          if (bubbleLayer) atlasMap.layers.remove(bubbleLayer)
+
+          source.clear()
+          source.add(pins)
+
+          bubbleLayer = new atlas.layer.BubbleLayer(source, undefined, {
+            radius: 4,
+            strokeWidth: 0
+          })
+
+          atlasMap.layers.add([
+            bubbleLayer
+          ], 'labels')
+
+        })
+      })
+    }
+  </script>
+</head>
+<body onload="getMap()">
+<div id="myMap" style="position:relative;width:100%;min-width:290px;height:600px;"></div>
+
+<img id="loadingIcon" src="/images/loadingIcon.gif" title="Loading" style="position:absolute;left:calc(50% - 25px);top:250px;display:none;"/>
+
+<fieldset style="width:calc(100% - 30px);min-width:290px;margin-top:10px;">
+  <legend>Calculate nearest locations</legend>
+  This sample shows how to do a spatial join between two sets of points based on the shortest stright line distance or
+  travel time along roads using the route matrix service.
+  In this case, the origins are fire stations, and the destinations are schools (blue dots). This analysis shows us
+  which fire station is closest to which school.
+  A straight line distance is a fast and simple calculation, however, in many cases travel time is more important than a
+  straight line distance.
+  With the Azure Maps route matrix service, additional route options can be specified, such as the travel mode, future
+  travel times, vehicle dimensions, and much more.
+</fieldset>
+</body>
+</html>
