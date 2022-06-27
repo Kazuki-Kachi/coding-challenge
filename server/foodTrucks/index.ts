@@ -1,6 +1,6 @@
-import {AzureFunction, Context, HttpRequest} from "@azure/functions"
-import {GeoJsonRequest}                      from "../shared/foodTrucks/requests"
-import {geoJson}                             from "../shared/foodTrucks/geoJson"
+import {AzureFunction, Context, HttpRequest} from '@azure/functions'
+import {GeoJsonRequest}                      from '../shared/foodTrucks/requests'
+import {geoJson}                             from '../shared/foodTrucks/geoJson'
 
 const httpTrigger: AzureFunction = async function (context: Context, req: HttpRequest): Promise<void> {
     const body = req.body ?? {
@@ -10,17 +10,23 @@ const httpTrigger: AzureFunction = async function (context: Context, req: HttpRe
     }
     context.log(`${JSON.stringify(req)}
      ${JSON.stringify(body)}`)
-    GeoJsonRequest.validate(body)
     try {
+        GeoJsonRequest.validate(body)
         context.res = {
             headers: {'content-type': 'application/json', 'Access-Control-Allow-Origin': ' *'},
             body: await geoJson(context, body)
         }
     } catch (err) {
-        context.res = {
-            statusCode: 500,
-            body: err.toString()
-        }
+        if (err instanceof TypeError)
+            context.res = {
+                statusCode: 400,
+                body: err.message
+            }
+        else
+            context.res = {
+                statusCode: 500,
+                body: err.toString()
+            }
     }
 }
 export default httpTrigger

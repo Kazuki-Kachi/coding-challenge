@@ -1,0 +1,88 @@
+openapi: 3.0.3
+info:
+  title: Title
+  description: api document for coding challenge tools
+  version: 1.0.0
+  contact:
+    url: 'https://github.com/Kazuki-Kachi/coding-challenge'
+servers:
+  - url: 'https://codingchallengeapps.azurewebsites.net'
+tags:
+  - name: foodTrucks
+    x-displayName: FoodTrucks
+    description: information of foodTrucks
+paths:
+  /foodTrucks:
+    get:
+      tags:
+        - foodTrucks
+      operationId: GetFoodTruck
+      description: 'Locate food trucks within a specified distance from a specified point.'
+      parameters:
+        - name: longitude
+          in: query
+          required: true
+          description: Longitude of the reference point from which the distance to foodTruck is calculated.
+          schema:
+            type: number
+        - name: latitude
+          in: query
+          required: true
+          description: Latitude of the reference point from which the distance to foodTruck is calculated.
+          schema:
+            type: number
+        - name: distance
+          in: query
+          required: true
+          description: Distance to foodTruck to be included in the results.
+          schema:
+            type: number
+        - name: unit
+          in: query
+          required: false
+          description: Distance to foodTruck to be included in the results.
+          schema:
+            type: string
+            enum:
+              - meters
+              - kilometers
+              - miles
+      responses:
+        '200':
+          description: 'OK'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  'type':
+                    type: string
+                  features:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        'type':
+                          type: string
+                        geometry:
+                          type: object
+                          properties:
+                            type:
+                              type: string
+                            coordinates:
+                              type: array
+                              items:
+                                type: number
+        '400':
+          description: 'Bad request'
+          content:
+            text/plain:
+              schema:
+                type: string
+                description: 'Reason of bad request.'
+        '500':
+          description: 'Internal server error'
+          content:
+            text/plain:
+              schema:
+                type: string

@@ -9,5 +9,6 @@ export class JsonValidator {
         const validate = ajv.compile(schema)
         const result = validate(json)
         if (!result) throw TypeError(ajv.errorsText(validate.errors))
+
     }
 }
