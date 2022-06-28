@@ -1,0 +1,36 @@
+:toc:
+:sectnums:
+
+= My Coding Challenge
+
+A service that displays food trucks near the center of the map (within 1 km in a straight line) on the map.
+
+
+== Functional spec
+* Chose https://github.com/ArentInc/coding-challenge-tools/blob/master/coding_challenge.md#food-trucks[FoodTrack]
+
+== Technical spec
+Focused Back-end track
+
+=== Back-end
+* Typescript hosted by AzureFunctions (HttpTrigger)
+** https://codigchallengestrage.z31.web.core.windows.net/apidoc.html[API Document]
+** The underlying data are https://data.sfgov.org/resource/rqzj-sfat.geojson
+
+==== Reasons for choosing
+. The development environment already existed, so the work in progress was quick, and I had about 2 years experience with Typescript.
+. This was my first time using AzureFunctions, but I had experience with a similar solution (AWS Lambda).
+I did not choose Lambda because I did not have a private account.
+
+=== Trade off
+. [DistanceCalculator] tests are based on the approximate distance between two points measured using [Google maps] and are not guaranteed to be accurate.
+. Since it is difficult to know the exact distance between the reference point and the food truck, the test is constructed assuming that the results of the [DistanceCalculator] calculations are generally correct.
+
+
+=== Front-end
+* simple static html and minimal Javascript.
+** Map engine is Azure maps (using azure-maps-control)
+** Map's api Key protection is cors and periodic rotation.
+
+=== Hosted by
+https://codigchallengestrage.z31.web.core.windows.net/[food tracks]
