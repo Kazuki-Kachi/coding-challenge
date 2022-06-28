@@ -5,7 +5,7 @@ import {DistanceCalculator} from '../util/distanceCalucrator'
 
 export type Point = {
     type: string,
-    coordinates: [lat: number, lng: number]
+    coordinates: [lng: number, lat: number]
 }
 
 export class GeoJson {

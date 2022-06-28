@@ -107,4 +107,11 @@ describe('Check getGeoJson', () => {
         }).then(res => ('features' in res) ? res['features'].length : 0)).resolves.toBe(0)
     })
 
+    it('check return type', () => {
+        return expect(GeoJson.get({
+            location: [-122.43156655769769, 37.76016570672468],
+            distance: 100
+        }).then((res =>('type' in res) && ('features' in res)))).resolves.toBeTruthy()
+    })
+
 })

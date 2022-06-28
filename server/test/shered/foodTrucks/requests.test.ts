@@ -7,7 +7,7 @@ describe('Check requestValidator', () => {
         {location: [37.760628107803335, -122.43226448208054], distance: 10, unit: DistanceUnits.kilometers},
         {location: [37.760628107803335, -122.43226448208054], distance: 10, unit: DistanceUnits.meters},
         {location: [37.760628107803335, -122.43226448208054], distance: 0}])('Successful', value => {
-        expect(GeoJsonRequest.validate(value))
+        expect(GeoJsonRequest.validate(value)).toBeUndefined()
     })
 
     it.each([
